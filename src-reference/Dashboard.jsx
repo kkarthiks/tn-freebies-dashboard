@@ -1,551 +1,311 @@
 import { useState } from "react";
-import { BarChart, Bar, LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ComposedChart, ReferenceLine, Cell } from "recharts";
+import { BarChart, Bar, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ComposedChart, ReferenceLine, Cell } from "recharts";
 
-// ─── DATA MODEL ───────────────────────────────────────────────────────────
-// Sources: CAG Audit Reports (2011-2024), PRS India Budget Analysis (2019-2025),
-// TN Finance Dept Budget Documents, NITI Aayog Macro-Fiscal Landscape (Mar 2025),
-// 16th Finance Commission projections, DMK Manifesto 2021/2026, AIADMK Manifesto 2016/2026
+const FX = 93;
+function fmtCr(v,c){if(c==="usd"){const u=(v*1e7)/FX;if(u>=1e9)return"$"+(u/1e9).toPrecision(3)+"B";if(u>=1e6)return"$"+(u/1e6).toPrecision(3)+"M";return"$"+(u/1e3).toPrecision(3)+"K"}if(v>=1e5)return"₹"+(v/1e5).toFixed(1)+"L Cr";if(v>=1e3)return"₹"+(v/1e3).toFixed(0)+"K Cr";return"₹"+v+" Cr"}
+function fmtLCr(v,c){if(c==="usd"){const u=(v*1e7)/FX;return u>=1e9?"$"+(u/1e9).toPrecision(3)+"B":"$"+(u/1e6).toPrecision(3)+"M"}return"₹"+(v/1e5).toFixed(1)+"L Cr"}
+function fmtPC(v,c){if(c==="usd"){const u=v/FX;return u>=1e3?"$"+(u/1e3).toFixed(1)+"K":"$"+Math.round(u)}return"₹"+v.toLocaleString("en-IN")}
+function fmtAxCr(v,c){if(c==="usd"){const u=(v*1e7)/FX;return u>=1e9?"$"+(u/1e9).toFixed(0)+"B":"$"+(u/1e6).toFixed(0)+"M"}return(v/1e3).toFixed(0)+"K"}
+function fmtAxLC(v,c){if(c==="usd"){return"$"+((v*1e7/FX)/1e9).toFixed(0)+"B"}return(v/1e5).toFixed(1)+"L"}
+function fmtAxPC(v,c){if(c==="usd")return"$"+((v/FX)/1e3).toFixed(0)+"K";return"₹"+(v/1e3).toFixed(0)+"K"}
+function axCL(c){return c==="usd"?"USD":"₹ Crore"}
+function axCLB(c){return c==="usd"?"USD":"₹ Lakh Cr"}
+function axPCL(c){return c==="usd"?"USD / person":"₹ per person"}
 
-const fiscalData = [
-  { year:"2010-11", yr:"FY11", revReceipts:70200, fiscalDeficit:15800, freebieSpend:12000, gsdp:600000, debt:100000, pop:7.10, govt:"DMK (Karunanidhi)", era:"pre" },
-  { year:"2011-12", yr:"FY12", revReceipts:85220, fiscalDeficit:17275, freebieSpend:18500, gsdp:640000, debt:115000, pop:7.13, govt:"AIADMK-I (Jaya)", era:"aiadmk1" },
-  { year:"2012-13", yr:"FY13", revReceipts:98828, fiscalDeficit:16519, freebieSpend:22000, gsdp:750000, debt:128000, pop:7.16, govt:"AIADMK-I (Jaya)", era:"aiadmk1" },
-  { year:"2013-14", yr:"FY14", revReceipts:108000, fiscalDeficit:25000, freebieSpend:25000, gsdp:850000, debt:145000, pop:7.19, govt:"AIADMK-I (Jaya)", era:"aiadmk1" },
-  { year:"2014-15", yr:"FY15", revReceipts:121000, fiscalDeficit:28500, freebieSpend:27500, gsdp:980000, debt:165000, pop:7.22, govt:"AIADMK-I (Jaya)", era:"aiadmk1" },
-  { year:"2015-16", yr:"FY16", revReceipts:132000, fiscalDeficit:35000, freebieSpend:29000, gsdp:1060000, debt:190000, pop:7.25, govt:"AIADMK-I (Jaya)", era:"aiadmk1" },
-  { year:"2016-17", yr:"FY17", revReceipts:142000, fiscalDeficit:38500, freebieSpend:31000, gsdp:1190000, debt:215000, pop:7.30, govt:"AIADMK-II (Jaya→EPS)", era:"aiadmk2" },
-  { year:"2017-18", yr:"FY18", revReceipts:158000, fiscalDeficit:34000, freebieSpend:33000, gsdp:1340000, debt:240000, pop:7.35, govt:"AIADMK-II (EPS)", era:"aiadmk2" },
-  { year:"2018-19", yr:"FY19", revReceipts:173000, fiscalDeficit:39000, freebieSpend:35000, gsdp:1500000, debt:270000, pop:7.40, govt:"AIADMK-II (EPS)", era:"aiadmk2" },
-  { year:"2019-20", yr:"FY20", revReceipts:196000, fiscalDeficit:44176, freebieSpend:37000, gsdp:1730000, debt:310000, pop:7.45, govt:"AIADMK-II (EPS)", era:"aiadmk2" },
-  { year:"2020-21", yr:"FY21", revReceipts:186000, fiscalDeficit:96890, freebieSpend:40000, gsdp:1740000, debt:420000, pop:7.50, govt:"AIADMK-II (EPS)", era:"aiadmk2" },
-  { year:"2021-22", yr:"FY22", revReceipts:210000, fiscalDeficit:82000, freebieSpend:43000, gsdp:2140000, debt:510000, pop:7.55, govt:"DMK-III (Stalin)", era:"dmk3" },
-  { year:"2022-23", yr:"FY23", revReceipts:246000, fiscalDeficit:81886, freebieSpend:46000, gsdp:2480000, debt:600000, pop:7.60, govt:"DMK-III (Stalin)", era:"dmk3" },
-  { year:"2023-24", yr:"FY24", revReceipts:265000, fiscalDeficit:90430, freebieSpend:49000, gsdp:2720000, debt:690000, pop:7.65, govt:"DMK-III (Stalin)", era:"dmk3" },
-  { year:"2024-25", yr:"FY25", revReceipts:280000, fiscalDeficit:108690, freebieSpend:52000, gsdp:3120000, debt:780000, pop:7.70, govt:"DMK-III (Stalin)", era:"dmk3" },
-  { year:"2025-26", yr:"FY26", revReceipts:331569, fiscalDeficit:112000, freebieSpend:56000, gsdp:3450000, debt:850000, pop:7.75, govt:"DMK-III (Stalin)", era:"dmk3" },
-];
+const T={en:{
+title:"Tamil Nadu: The Fiscal Cost of Election Freebies",
+subtitle:"FY 2010–11 → FY 2030–31 | AIADMK & DMK Manifesto Analysis",
+intro:"Estimated annual cost of election-linked welfare schemes (\u201Cfreebies\u201D) across three successive elected governments \u2014 ",
+introTail:" — with 5-year projections based on 2026 manifesto promises. Data: CAG, PRS India, TN Finance Dept, NITI Aayog.",
+a1L:"AIADMK-I (2011–16)",a2L:"AIADMK-II (2016–21)",d3L:"DMK (2021–26)",
+sfL:"Freebies (FY26)",sfR:"of revenue receipts",stL:"Total Freebies FY12–26",stS:"15 years, 3 govts",
+sdL:"Fiscal Deficit FY26",sdG:"of GSDP",sdbL:"Outstanding Debt",sdbS:"of GSDP (FY26)",
+pL:"PROJECTION (FY27–31):",dmM:"DMK Manifesto",aiM:"AIADMK Manifesto",
+dmD:"₹2K/mo KMUT + ₹8K coupons + laptops + breakfast",aiD:"₹2K/mo Kula Vilakku + fridges + bus (men) + 3 LPG",
+dmDu:"$22/mo KMUT + $86 coupons + laptops + breakfast",aiDu:"$22/mo Kula Vilakku + fridges + bus (men) + 3 LPG",
+tabs:["Freebies vs Revenue","Fiscal Deficit","Per Capita Impact","Debt Trajectory","Freebie Breakdown"],
+c1T:"Election Freebies as % of State Revenue Receipts",c1S:"Bars = freebie spend | Line = % of revenue receipts | Color = ruling government",
+c2T:s=>"Fiscal Deficit: Actual + Projected ("+(s==="dmk"?"DMK":"AIADMK")+" Manifesto)",c2S:"Red dashed = 3% FRBM limit | Bars = deficit | Line = % of GSDP",
+c3T:"Per Capita Burden: Freebie Spend, Deficit & Debt",c3S:s=>"Pop: 7.1 Cr (2011) → est. 7.96 Cr (2031) | "+(s==="dmk"?"DMK":"AIADMK")+" projections after FY26",
+c4T:"Outstanding Debt Trajectory & Debt-to-GSDP Ratio",c4S:"30% debt/GSDP = danger zone | Debt crossed ₹8L Cr in FY25",c4Su:"30% debt/GSDP = danger zone | Debt crossed $86B in FY25",
+c5T:"Freebie Breakdown by Category: Avg Annual Spend per Govt",c5S:"Estimated avg annual spend per category across each government tenure",
+tFP:"Freebies as % of Revenue",tFS:"Freebie Spend",tRR:"Revenue Receipts",tFD:"Fiscal Deficit",tAG:"As % of GSDP",tPr:"(projected)",
+tFC:"Freebie/capita",tDC:"Deficit/capita",tBC:"Debt/capita",tDb:"Outstanding Debt",tDG:"Debt/GSDP",
+aPR:"% of Revenue",aPG:"% of GSDP",aDG:"Debt/GSDP %",
+lFS:"Freebie Spend",lPR:"% of Revenue",lDf:"Fiscal Deficit",lDb:"Debt",lDPC:"Debt/Capita",lDfPC:"Deficit/Capita",lFPC:"Freebie/Capita",lDG:"Debt/GSDP %",
+ct1:"PDS / Food Subsidy",ct2:"Women Cash Transfers",ct3:"Free Bus Travel",ct4:"Laptops & Education",ct5:"Appliances (Mixie etc)",ct6:"Gold / Marriage Aid",ct7:"Pensions & Breakfast",ct8:"Pongal & Other Gifts",
+lA1:"AIADMK-I (FY12–16)",lA2:"AIADMK-II (FY17–21)",lD3:"DMK (FY22–26)",lPj:"2026 Manifesto Avg",
+iD:"If DMK Manifesto (FY31)",iA:"If AIADMK Manifesto (FY31)",pF:"Freebie spend",pDf:"Fiscal deficit",pDb:"Debt",pDPC:"Debt per capita",oR:"of rev",
+kT:"KEY FINDINGS",
+k1:c=>"Freebie spend has grown ~4.7× in 15 years — from "+c(12000)+" (FY11) to "+c(56000)+" (FY26).",
+k2:"Freebies consume ~17% of revenue receipts (FY26). Composition shifted from one-time items (TVs, mixies) to recurring cash transfers.",
+k3:c=>c==="usd"?"The shift to recurring commitments is critical: KMUT + bus subsidy = $1.9B+ of permanent annual obligations.":"The shift to recurring commitments is critical: KMUT + bus subsidy = ₹18,000+ Cr of permanent annual obligations.",
+k4:"Both 2026 manifestos push fiscal deficit to 3.5–4.9% of GSDP, breaching the 3% FRBM ceiling.",
+k5:c=>c==="usd"?"Per capita debt projected to nearly double from $1,183 (FY26) to $2,151–$2,366 (FY31).":"Per capita debt projected to nearly double from ₹1.1L (FY26) to ₹2.0–2.2L (FY31).",
+mT:"METHODOLOGY & ASSUMPTIONS",mSL:"Sources:",mDL:"Definition:",mPL:"Projections:",mFL:"FX Rate:",
+mS:"CAG State Finance Audit Reports (FY11–FY24), PRS India Budget Analyses (FY19–FY25), TN Finance Dept Budget documents (FY25–26), NITI Aayog Macro-Fiscal Landscape (Mar 2025), RBI State Finances, DMK & AIADMK 2026 election manifestos.",
+mD:"Subsidies/welfare schemes linked to manifesto promises — PDS, transport, cash transfers, appliances, laptops, gold, Pongal gifts, breakfast, pensions. Excludes developmental welfare (ICDS, MGNREGA, housing).",
+mP:"Revenue 10% CAGR, GSDP 11% CAGR, Population 0.5% p.a. One-time costs amortised 2 yrs. Recurring costs at full run-rate from Year 2. No offsetting cuts assumed.",
+mF:"₹93 = $1 (approximate, applied uniformly for comparability).",
+ft:"Analysis compiled April 2026 · Not investment or policy advice · Data estimated from public sources and manifesto commitments",
+cur:"Currency",lng:"Language"},
 
-// Projections based on manifesto promises
-const projDMK = [
-  { year:"2026-27", yr:"FY27", revReceipts:360000, fiscalDeficit:145000, freebieSpend:88000, gsdp:3830000, debt:990000, pop:7.80 },
-  { year:"2027-28", yr:"FY28", revReceipts:394000, fiscalDeficit:155000, freebieSpend:95000, gsdp:4250000, debt:1140000, pop:7.84 },
-  { year:"2028-29", yr:"FY29", revReceipts:430000, fiscalDeficit:162000, freebieSpend:100000, gsdp:4720000, debt:1290000, pop:7.88 },
-  { year:"2029-30", yr:"FY30", revReceipts:470000, fiscalDeficit:170000, freebieSpend:106000, gsdp:5240000, debt:1450000, pop:7.92 },
-  { year:"2030-31", yr:"FY31", revReceipts:513000, fiscalDeficit:178000, freebieSpend:112000, gsdp:5820000, debt:1620000, pop:7.96 },
-];
+ta:{
+title:"தமிழ்நாடு: தேர்தல் இலவசங்களின் நிதிச் செலவு",
+subtitle:"நிதியாண்டு 2010–11 → 2030–31 | அதிமுக & திமுக தேர்தல் அறிக்கை பகுப்பாய்வு",
+intro:"மூன்று தொடர்ச்சியான அரசுகளின் தேர்தல் நலத்திட்ட இலவசங்களின் மதிப்பிடப்பட்ட ஆண்டு செலவு — ",
+introTail:" — 2026 தேர்தல் அறிக்கை வாக்குறுதிகளின் அடிப்படையில் 5 ஆண்டு கணிப்புகளுடன். தரவு: CAG, PRS India, தமிழ்நாடு நிதித்துறை, NITI Aayog.",
+a1L:"அதிமுக-I (2011–16)",a2L:"அதிமுக-II (2016–21)",d3L:"திமுக (2021–26)",
+sfL:"இலவசங்கள் (நிதி26)",sfR:"வருவாயில்",stL:"மொத்த இலவசங்கள் நிதி12–26",stS:"15 ஆண்டுகள், 3 அரசுகள்",
+sdL:"நிதிப் பற்றாக்குறை நிதி26",sdG:"GSDP-யில்",sdbL:"நிலுவைக் கடன்",sdbS:"GSDP-யில் (நிதி26)",
+pL:"கணிப்பு (நிதி27–31):",dmM:"திமுக அறிக்கை",aiM:"அதிமுக அறிக்கை",
+dmD:"₹2K/மாதம் KMUT + ₹8K கூப்பன் + மடிக்கணினி + காலை உணவு",aiD:"₹2K/மாதம் குல விளக்கு + குளிர்சாதனப்பெட்டி + பேருந்து (ஆண்) + 3 LPG",
+dmDu:"$22/மாதம் KMUT + $86 கூப்பன் + மடிக்கணினி + காலை உணவு",aiDu:"$22/மாதம் குல விளக்கு + குளிர்சாதனப்பெட்டி + பேருந்து (ஆண்) + 3 LPG",
+tabs:["இலவசம் vs வருவாய்","நிதிப் பற்றாக்குறை","தனிநபர் சுமை","கடன் போக்கு","இலவச விவரம்"],
+c1T:"மாநில வருவாயில் தேர்தல் இலவசங்களின் %",c1S:"பட்டை = இலவச செலவு | கோடு = வருவாயில் % | நிறம் = ஆளும் அரசு",
+c2T:s=>"நிதிப் பற்றாக்குறை: உண்மை + கணிப்பு ("+(s==="dmk"?"திமுக":"அதிமுக")+" அறிக்கை)",c2S:"சிவப்பு கோடு = 3% FRBM வரம்பு | பட்டை = பற்றாக்குறை | கோடு = GSDP %",
+c3T:"தனிநபர் சுமை: இலவசம், பற்றாக்குறை & கடன்",c3S:s=>"மக்கள்தொகை: 7.1 கோடி (2011) → 7.96 கோடி (2031) | நிதி26-க்குப் பிறகு "+(s==="dmk"?"திமுக":"அதிமுக")+" கணிப்பு",
+c4T:"நிலுவைக் கடன் போக்கு & கடன்/GSDP விகிதம்",c4S:"30% கடன்/GSDP = ஆபத்து மண்டலம் | நிதி25-ல் கடன் ₹8 லட்சம் கோடியைத் தாண்டியது",c4Su:"30% கடன்/GSDP = ஆபத்து மண்டலம் | நிதி25-ல் கடன் $86B-ஐத் தாண்டியது",
+c5T:"வகை வாரியான இலவச விவரம்: அரசு வாரி சராசரி ஆண்டு செலவு",c5S:"ஒவ்வொரு அரசின் பதவிக்காலத்திலும் மதிப்பிடப்பட்ட சராசரி ஆண்டு செலவு",
+tFP:"வருவாயில் இலவச %",tFS:"இலவச செலவு",tRR:"வருவாய் வரவு",tFD:"நிதிப் பற்றாக்குறை",tAG:"GSDP %",tPr:"(கணிப்பு)",
+tFC:"இலவசம்/நபர்",tDC:"பற்றாக்குறை/நபர்",tBC:"கடன்/நபர்",tDb:"நிலுவைக் கடன்",tDG:"கடன்/GSDP",
+aPR:"வருவாயில் %",aPG:"GSDP %",aDG:"கடன்/GSDP %",
+lFS:"இலவச செலவு",lPR:"வருவாயில் %",lDf:"நிதிப் பற்றாக்குறை",lDb:"கடன்",lDPC:"கடன்/நபர்",lDfPC:"பற்றாக்குறை/நபர்",lFPC:"இலவசம்/நபர்",lDG:"கடன்/GSDP %",
+ct1:"PDS / உணவு மானியம்",ct2:"பெண்களுக்கு ரொக்கம்",ct3:"இலவச பேருந்து",ct4:"மடிக்கணினி & கல்வி",ct5:"மின்சாதனங்கள் (மிக்சி)",ct6:"தங்கம் / திருமண உதவி",ct7:"ஓய்வூதியம் & காலை உணவு",ct8:"பொங்கல் & இதர பரிசுகள்",
+lA1:"அதிமுக-I (நிதி12–16)",lA2:"அதிமுக-II (நிதி17–21)",lD3:"திமுக (நிதி22–26)",lPj:"2026 அறிக்கை சராசரி",
+iD:"திமுக அறிக்கை செயல்படுத்தினால் (நிதி31)",iA:"அதிமுக அறிக்கை செயல்படுத்தினால் (நிதி31)",pF:"இலவச செலவு",pDf:"நிதிப் பற்றாக்குறை",pDb:"கடன்",pDPC:"தனிநபர் கடன்",oR:"வருவாயில்",
+kT:"முக்கிய கண்டுபிடிப்புகள்",
+k1:c=>"இலவச செலவு 15 ஆண்டுகளில் ~4.7 மடங்கு உயர்ந்தது — "+c(12000)+" (நிதி11) → "+c(56000)+" (நிதி26).",
+k2:"இலவசங்கள் மொத்த வருவாயில் ~17% (நிதி26). ஒரு முறை பொருட்களிலிருந்து (TV, மிக்சி) தொடர் பணப்பரிமாற்றத்திற்கு மாறியுள்ளது.",
+k3:c=>c==="usd"?"தொடர் கடமைகளுக்கு மாறியது முக்கியம்: KMUT + பேருந்து மானியம் = $1.9B+ நிரந்தர ஆண்டு கடமைகள்.":"தொடர் கடமைகளுக்கு மாறியது முக்கியம்: KMUT + பேருந்து மானியம் = ₹18,000+ கோடி நிரந்தர ஆண்டு கடமைகள்.",
+k4:"இரு 2026 அறிக்கைகளும் நிதிப் பற்றாக்குறையை GSDP-யின் 3.5–4.9%-க்கு தள்ளி, 3% FRBM வரம்பை மீறும்.",
+k5:c=>c==="usd"?"தனிநபர் கடன் $1,183 (நிதி26) → $2,151–$2,366 (நிதி31) கிட்டத்தட்ட இரட்டிப்பாகும்.":"தனிநபர் கடன் ₹1.1 லட்சத்திலிருந்து (நிதி26) ₹2.0–2.2 லட்சமாக (நிதி31) கிட்டத்தட்ட இரட்டிப்பாகும்.",
+mT:"முறையியல் & அனுமானங்கள்",mSL:"ஆதாரங்கள்:",mDL:"வரையறை:",mPL:"கணிப்புகள்:",mFL:"மாற்று விகிதம்:",
+mS:"CAG மாநில நிதி தணிக்கை அறிக்கைகள் (நிதி11–24), PRS India பட்ஜெட் (நிதி19–25), தமிழ்நாடு நிதித்துறை (நிதி25–26), NITI Aayog, RBI, திமுக & அதிமுக 2026 தேர்தல் அறிக்கைகள்.",
+mD:"தேர்தல் அறிக்கை வாக்குறுதிகளுடன் இணைக்கப்பட்ட மானியங்கள்/நலத்திட்டங்கள் — PDS, போக்குவரத்து, பணப்பரிமாற்றம், மின்சாதனங்கள், மடிக்கணினி, தங்கம், பொங்கல், காலை உணவு, ஓய்வூதியம். வளர்ச்சி நலனை (ICDS, MGNREGA, வீட்டுவசதி) விலக்குகிறது.",
+mP:"வருவாய் 10% CAGR, GSDP 11% CAGR, மக்கள்தொகை ஆண்டுக்கு 0.5%. ஒரு முறை செலவுகள் 2 ஆண்டுகளில். தொடர் செலவுகள் 2-ம் ஆண்டிலிருந்து முழு விகிதத்தில். ஈடு செய்யும் வெட்டுகள் அனுமானிக்கப்படவில்லை.",
+mF:"₹93 = $1 (தோராயம், ஒப்பீட்டுக்காக).",
+ft:"பகுப்பாய்வு ஏப்ரல் 2026 · முதலீடு/கொள்கை ஆலோசனை அல்ல · பொது ஆதாரங்களிலிருந்து மதிப்பீடு",
+cur:"நாணயம்",lng:"மொழி"}};
 
-const projAIADMK = [
-  { year:"2026-27", yr:"FY27", revReceipts:360000, fiscalDeficit:160000, freebieSpend:98000, gsdp:3830000, debt:1010000, pop:7.80 },
-  { year:"2027-28", yr:"FY28", revReceipts:394000, fiscalDeficit:172000, freebieSpend:106000, gsdp:4250000, debt:1180000, pop:7.84 },
-  { year:"2028-29", yr:"FY29", revReceipts:430000, fiscalDeficit:182000, freebieSpend:112000, gsdp:4720000, debt:1350000, pop:7.88 },
-  { year:"2029-30", yr:"FY30", revReceipts:470000, fiscalDeficit:192000, freebieSpend:118000, gsdp:5240000, debt:1530000, pop:7.92 },
-  { year:"2030-31", yr:"FY31", revReceipts:513000, fiscalDeficit:204000, freebieSpend:125000, gsdp:5820000, debt:1720000, pop:7.96 },
-];
+const FD=[
+{yr:"FY11",rR:70200,fD:15800,fS:12000,g:600000,d:100000,p:7.10,e:"pre"},
+{yr:"FY12",rR:85220,fD:17275,fS:18500,g:640000,d:115000,p:7.13,e:"aiadmk1"},
+{yr:"FY13",rR:98828,fD:16519,fS:22000,g:750000,d:128000,p:7.16,e:"aiadmk1"},
+{yr:"FY14",rR:108000,fD:25000,fS:25000,g:850000,d:145000,p:7.19,e:"aiadmk1"},
+{yr:"FY15",rR:121000,fD:28500,fS:27500,g:980000,d:165000,p:7.22,e:"aiadmk1"},
+{yr:"FY16",rR:132000,fD:35000,fS:29000,g:1060000,d:190000,p:7.25,e:"aiadmk1"},
+{yr:"FY17",rR:142000,fD:38500,fS:31000,g:1190000,d:215000,p:7.30,e:"aiadmk2"},
+{yr:"FY18",rR:158000,fD:34000,fS:33000,g:1340000,d:240000,p:7.35,e:"aiadmk2"},
+{yr:"FY19",rR:173000,fD:39000,fS:35000,g:1500000,d:270000,p:7.40,e:"aiadmk2"},
+{yr:"FY20",rR:196000,fD:44176,fS:37000,g:1730000,d:310000,p:7.45,e:"aiadmk2"},
+{yr:"FY21",rR:186000,fD:96890,fS:40000,g:1740000,d:420000,p:7.50,e:"aiadmk2"},
+{yr:"FY22",rR:210000,fD:82000,fS:43000,g:2140000,d:510000,p:7.55,e:"dmk3"},
+{yr:"FY23",rR:246000,fD:81886,fS:46000,g:2480000,d:600000,p:7.60,e:"dmk3"},
+{yr:"FY24",rR:265000,fD:90430,fS:49000,g:2720000,d:690000,p:7.65,e:"dmk3"},
+{yr:"FY25",rR:280000,fD:108690,fS:52000,g:3120000,d:780000,p:7.70,e:"dmk3"},
+{yr:"FY26",rR:331569,fD:112000,fS:56000,g:3450000,d:850000,p:7.75,e:"dmk3"}];
 
-const formatCr = (v) => {
-  if (v >= 100000) return `₹${(v/100000).toFixed(1)}L Cr`;
-  if (v >= 1000) return `₹${(v/1000).toFixed(0)}K Cr`;
-  return `₹${v} Cr`;
-};
-const formatLCr = (v) => `₹${(v/100000).toFixed(1)}L Cr`;
-const formatPct = (v) => `${v.toFixed(1)}%`;
-const formatINR = (v) => `₹${v.toLocaleString("en-IN")}`;
+const pD=[
+{yr:"FY27",rR:360000,fD:145000,fS:88000,g:3830000,d:990000,p:7.80},
+{yr:"FY28",rR:394000,fD:155000,fS:95000,g:4250000,d:1140000,p:7.84},
+{yr:"FY29",rR:430000,fD:162000,fS:100000,g:4720000,d:1290000,p:7.88},
+{yr:"FY30",rR:470000,fD:170000,fS:106000,g:5240000,d:1450000,p:7.92},
+{yr:"FY31",rR:513000,fD:178000,fS:112000,g:5820000,d:1620000,p:7.96}];
 
-const eraColors = {
-  pre: "#6B7280",
-  aiadmk1: "#1E40AF",
-  aiadmk2: "#3B82F6",
-  dmk3: "#DC2626",
-  projDmk: "#EF4444",
-  projAiadmk: "#2563EB",
-};
+const pA=[
+{yr:"FY27",rR:360000,fD:160000,fS:98000,g:3830000,d:1010000,p:7.80},
+{yr:"FY28",rR:394000,fD:172000,fS:106000,g:4250000,d:1180000,p:7.84},
+{yr:"FY29",rR:430000,fD:182000,fS:112000,g:4720000,d:1350000,p:7.88},
+{yr:"FY30",rR:470000,fD:192000,fS:118000,g:5240000,d:1530000,p:7.92},
+{yr:"FY31",rR:513000,fD:204000,fS:125000,g:5820000,d:1720000,p:7.96}];
 
-const eraLabels = {
-  pre: "DMK (Pre-2011)",
-  aiadmk1: "AIADMK-I (2011–16)",
-  aiadmk2: "AIADMK-II (2016–21)",
-  dmk3: "DMK (2021–26)",
-};
+const EC={pre:"#6B7280",aiadmk1:"#1E40AF",aiadmk2:"#3B82F6",dmk3:"#DC2626"};
+const TTS={background:"rgba(15,15,20,0.95)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:"8px",padding:"12px 16px",color:"#E5E7EB",fontSize:"13px",lineHeight:"1.6",backdropFilter:"blur(8px)"};
 
-// ─── CHART COMPONENTS ─────────────────────────────────────────────────────
+function Tog({label,optA,optB,value,onChange}){const isB=value==="b";return(
+<div style={{display:"flex",alignItems:"center",gap:8}}>
+<span style={{fontSize:11,color:"#6B7280",fontWeight:600,minWidth:50}}>{label}</span>
+<div onClick={()=>onChange(isB?"a":"b")} style={{width:52,height:26,borderRadius:13,cursor:"pointer",position:"relative",background:isB?"#F59E0B":"rgba(255,255,255,0.12)",transition:"background 0.2s"}}>
+<div style={{width:20,height:20,borderRadius:10,background:"#fff",position:"absolute",top:3,left:isB?29:3,transition:"left 0.2s",boxShadow:"0 1px 3px rgba(0,0,0,0.3)"}}/></div>
+<span style={{fontSize:11,color:isB?"#F59E0B":"#9CA3AF",fontWeight:600,minWidth:30}}>{isB?optB:optA}</span></div>)}
 
-const CustomTooltipStyle = {
-  background: "rgba(15,15,20,0.95)",
-  border: "1px solid rgba(255,255,255,0.1)",
-  borderRadius: "8px",
-  padding: "12px 16px",
-  color: "#E5E7EB",
-  fontSize: "13px",
-  lineHeight: "1.6",
-  backdropFilter: "blur(8px)",
-};
+function C1({data,t,cur}){const cd=data.map(d=>({yr:d.yr,pct:(d.fS/d.rR*100),fCr:d.fS,rCr:d.rR,e:d.e}));
+return<div style={{width:"100%",height:380}}><ResponsiveContainer><ComposedChart data={cd} margin={{top:20,right:30,left:10,bottom:5}}>
+<CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)"/>
+<XAxis dataKey="yr" tick={{fill:"#9CA3AF",fontSize:11}}/>
+<YAxis yAxisId="left" tick={{fill:"#9CA3AF",fontSize:11}} tickFormatter={v=>v.toFixed(0)+"%"} domain={[0,35]} label={{value:t.aPR,angle:-90,position:"insideLeft",fill:"#9CA3AF",fontSize:11}}/>
+<YAxis yAxisId="right" orientation="right" tick={{fill:"#9CA3AF",fontSize:11}} tickFormatter={v=>fmtAxCr(v,cur)} label={{value:axCL(cur),angle:90,position:"insideRight",fill:"#9CA3AF",fontSize:11}}/>
+<Tooltip content={({active,payload})=>{if(!active||!payload?.length)return null;const d=payload[0].payload;
+return<div style={TTS}><div style={{fontWeight:700,marginBottom:4}}>{d.yr}</div>
+<div>{t.tFP}: <span style={{color:"#F59E0B",fontWeight:600}}>{d.pct.toFixed(1)}%</span></div>
+<div>{t.tFS}: <span style={{color:"#EF4444"}}>{fmtCr(d.fCr,cur)}</span></div>
+<div>{t.tRR}: <span style={{color:"#10B981"}}>{fmtCr(d.rCr,cur)}</span></div></div>}}/>
+<Bar yAxisId="right" dataKey="fCr" name={t.lFS} radius={[3,3,0,0]} opacity={0.7}>
+{cd.map((r,i)=><Cell key={i} fill={EC[r.e]||"#6B7280"}/>)}</Bar>
+<Line yAxisId="left" type="monotone" dataKey="pct" stroke="#F59E0B" strokeWidth={3} dot={{r:4,fill:"#F59E0B"}} name={t.lPR}/>
+<ReferenceLine yAxisId="left" y={15} stroke="#F59E0B" strokeDasharray="6 4" opacity={0.4}/>
+</ComposedChart></ResponsiveContainer></div>}
 
-function Chart1_FreebieVsRevenue({ data }) {
-  const chartData = data.map(d => ({
-    yr: d.yr,
-    freebiesPct: (d.freebieSpend / d.revReceipts * 100),
-    freebieCr: d.freebieSpend,
-    revCr: d.revReceipts,
-    era: d.era,
-  }));
+function C2({data,prD,prA,sc,t,cur}){
+const h=data.map(r=>({yr:r.yr,pct:(r.fD/r.g*100),cr:r.fD,e:r.e}));
+const pr=(sc==="dmk"?prD:prA).map(r=>({yr:r.yr,pct:(r.fD/r.g*100),cr:r.fD,e:"proj"}));
+const a=[...h,...pr];
+return<div style={{width:"100%",height:380}}><ResponsiveContainer><ComposedChart data={a} margin={{top:20,right:30,left:10,bottom:5}}>
+<CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)"/>
+<XAxis dataKey="yr" tick={{fill:"#9CA3AF",fontSize:11}}/>
+<YAxis yAxisId="left" tick={{fill:"#9CA3AF",fontSize:11}} tickFormatter={v=>v.toFixed(1)+"%"} domain={[0,6]} label={{value:t.aPG,angle:-90,position:"insideLeft",fill:"#9CA3AF",fontSize:11}}/>
+<YAxis yAxisId="right" orientation="right" tick={{fill:"#9CA3AF",fontSize:11}} tickFormatter={v=>fmtAxCr(v,cur)} label={{value:axCL(cur),angle:90,position:"insideRight",fill:"#9CA3AF",fontSize:11}}/>
+<Tooltip content={({active,payload})=>{if(!active||!payload?.length)return null;const p=payload[0].payload;
+return<div style={TTS}><div style={{fontWeight:700,marginBottom:4}}>{p.yr} {p.e==="proj"?t.tPr:""}</div>
+<div>{t.tFD}: <span style={{color:"#EF4444",fontWeight:600}}>{fmtCr(p.cr,cur)}</span></div>
+<div>{t.tAG}: <span style={{color:"#F59E0B",fontWeight:600}}>{p.pct.toFixed(2)}%</span></div></div>}}/>
+<ReferenceLine yAxisId="left" y={3} stroke="#EF4444" strokeDasharray="6 4" opacity={0.6}/>
+<Bar yAxisId="right" dataKey="cr" name={t.lDf} radius={[3,3,0,0]} opacity={0.65}>
+{a.map((r,i)=><Cell key={i} fill={r.e==="proj"?(sc==="dmk"?"#DC2626":"#2563EB"):(EC[r.e]||"#6B7280")}/>)}</Bar>
+<Line yAxisId="left" type="monotone" dataKey="pct" stroke="#F59E0B" strokeWidth={3} dot={{r:3,fill:"#F59E0B"}}/>
+</ComposedChart></ResponsiveContainer></div>}
 
-  return (
-    <div style={{ width:"100%", height: 380 }}>
-      <ResponsiveContainer>
-        <ComposedChart data={chartData} margin={{ top:20, right:30, left:10, bottom:5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-          <XAxis dataKey="yr" tick={{ fill:"#9CA3AF", fontSize:11 }} />
-          <YAxis yAxisId="left" tick={{ fill:"#9CA3AF", fontSize:11 }} tickFormatter={v => `${v.toFixed(0)}%`} domain={[0, 35]} label={{ value:"% of Revenue", angle:-90, position:"insideLeft", fill:"#9CA3AF", fontSize:11 }} />
-          <YAxis yAxisId="right" orientation="right" tick={{ fill:"#9CA3AF", fontSize:11 }} tickFormatter={v => `${(v/1000).toFixed(0)}K`} label={{ value:"₹ Crore", angle:90, position:"insideRight", fill:"#9CA3AF", fontSize:11 }} />
-          <Tooltip content={({ active, payload }) => {
-            if (!active || !payload?.length) return null;
-            const d = payload[0]?.payload;
-            return (
-              <div style={CustomTooltipStyle}>
-                <div style={{ fontWeight:700, marginBottom:4 }}>{d.yr}</div>
-                <div>Freebies as % of Revenue: <span style={{ color:"#F59E0B", fontWeight:600 }}>{d.freebiesPct.toFixed(1)}%</span></div>
-                <div>Freebie Spend: <span style={{ color:"#EF4444" }}>{formatCr(d.freebieCr)}</span></div>
-                <div>Revenue Receipts: <span style={{ color:"#10B981" }}>{formatCr(d.revCr)}</span></div>
-              </div>
-            );
-          }} />
-          <Bar yAxisId="right" dataKey="freebieCr" name="Freebie Spend (₹Cr)" radius={[3,3,0,0]} opacity={0.7}>
-            {chartData.map((d, i) => (
-              <Cell key={i} fill={eraColors[d.era] || "#6B7280"} />
-            ))}
-          </Bar>
-          <Line yAxisId="left" type="monotone" dataKey="freebiesPct" stroke="#F59E0B" strokeWidth={3} dot={{ r:4, fill:"#F59E0B" }} name="% of Revenue" />
-          <ReferenceLine yAxisId="left" y={15} stroke="#F59E0B" strokeDasharray="6 4" opacity={0.4} label={{ value:"15% threshold", fill:"#F59E0B", fontSize:10, position:"top" }} />
-        </ComposedChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
+function C3({data,prD,prA,sc,t,cur}){
+const pr=sc==="dmk"?prD:prA;
+const a=[...data,...pr].map(r=>({yr:r.yr,fdPC:Math.round(r.fD/r.p),frPC:Math.round(r.fS/r.p),dtPC:Math.round(r.d/r.p),isP:!r.e}));
+return<div style={{width:"100%",height:380}}><ResponsiveContainer><ComposedChart data={a} margin={{top:20,right:30,left:10,bottom:5}}>
+<CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)"/>
+<XAxis dataKey="yr" tick={{fill:"#9CA3AF",fontSize:11}}/>
+<YAxis tick={{fill:"#9CA3AF",fontSize:11}} tickFormatter={v=>fmtAxPC(v,cur)} label={{value:axPCL(cur),angle:-90,position:"insideLeft",fill:"#9CA3AF",fontSize:11}}/>
+<Tooltip content={({active,payload})=>{if(!active||!payload?.length)return null;const p=payload[0].payload;
+return<div style={TTS}><div style={{fontWeight:700,marginBottom:4}}>{p.yr} {p.isP?t.tPr:""}</div>
+<div>{t.tFC}: <span style={{color:"#F59E0B",fontWeight:600}}>{fmtPC(p.frPC,cur)}</span></div>
+<div>{t.tDC}: <span style={{color:"#EF4444",fontWeight:600}}>{fmtPC(p.fdPC,cur)}</span></div>
+<div>{t.tBC}: <span style={{color:"#8B5CF6",fontWeight:600}}>{fmtPC(p.dtPC,cur)}</span></div></div>}}/>
+<Area type="monotone" dataKey="dtPC" fill="#8B5CF6" fillOpacity={0.15} stroke="#8B5CF6" strokeWidth={2} name={t.lDPC}/>
+<Line type="monotone" dataKey="fdPC" stroke="#EF4444" strokeWidth={2.5} dot={{r:3}} name={t.lDfPC}/>
+<Line type="monotone" dataKey="frPC" stroke="#F59E0B" strokeWidth={2.5} dot={{r:3}} name={t.lFPC}/>
+</ComposedChart></ResponsiveContainer></div>}
 
-function Chart2_FiscalDeficitBalloon({ data, projD, projA, scenario }) {
-  const hist = data.map(d => ({
-    yr: d.yr,
-    fdPct: (d.fiscalDeficit / d.gsdp * 100),
-    fdCr: d.fiscalDeficit,
-    era: d.era,
-  }));
-  
-  const proj = (scenario === "dmk" ? projD : projA).map(d => ({
-    yr: d.yr,
-    fdPct: (d.fiscalDeficit / d.gsdp * 100),
-    fdCr: d.fiscalDeficit,
-    era: scenario === "dmk" ? "projDmk" : "projAiadmk",
-  }));
+function C4({data,prD,prA,sc,t,cur}){
+const pr=sc==="dmk"?prD:prA;
+const a=[...data,...pr].map(r=>({yr:r.yr,pct:(r.d/r.g*100),cr:r.d,isP:!r.e}));
+return<div style={{width:"100%",height:380}}><ResponsiveContainer><ComposedChart data={a} margin={{top:20,right:30,left:10,bottom:5}}>
+<CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)"/>
+<XAxis dataKey="yr" tick={{fill:"#9CA3AF",fontSize:11}}/>
+<YAxis yAxisId="left" tick={{fill:"#9CA3AF",fontSize:11}} tickFormatter={v=>v.toFixed(0)+"%"} domain={[10,35]} label={{value:t.aDG,angle:-90,position:"insideLeft",fill:"#9CA3AF",fontSize:11}}/>
+<YAxis yAxisId="right" orientation="right" tick={{fill:"#9CA3AF",fontSize:11}} tickFormatter={v=>fmtAxLC(v,cur)} label={{value:axCLB(cur),angle:90,position:"insideRight",fill:"#9CA3AF",fontSize:11}}/>
+<Tooltip content={({active,payload})=>{if(!active||!payload?.length)return null;const p=payload[0].payload;
+return<div style={TTS}><div style={{fontWeight:700,marginBottom:4}}>{p.yr} {p.isP?t.tPr:""}</div>
+<div>{t.tDb}: <span style={{color:"#8B5CF6",fontWeight:600}}>{fmtLCr(p.cr,cur)}</span></div>
+<div>{t.tDG}: <span style={{color:"#EF4444",fontWeight:600}}>{p.pct.toFixed(1)}%</span></div></div>}}/>
+<ReferenceLine yAxisId="left" y={30} stroke="#EF4444" strokeDasharray="6 4" opacity={0.5}/>
+<Area yAxisId="right" type="monotone" dataKey="cr" fill="#8B5CF6" fillOpacity={0.2} stroke="#8B5CF6" strokeWidth={2} name={t.lDb}/>
+<Line yAxisId="left" type="monotone" dataKey="pct" stroke="#EF4444" strokeWidth={3} dot={{r:3,fill:"#EF4444"}} name={t.lDG}/>
+</ComposedChart></ResponsiveContainer></div>}
 
-  const combined = [...hist, ...proj];
+function C5({t,cur}){
+const bd=[
+{category:t.ct1,a1:8000,a2:9000,d3:11000,pj:13000},
+{category:t.ct2,a1:0,a2:0,d3:15000,pj:24000},
+{category:t.ct3,a1:1800,a2:2500,d3:3600,pj:7200},
+{category:t.ct4,a1:3500,a2:2800,d3:3500,pj:5000},
+{category:t.ct5,a1:4500,a2:2000,d3:1500,pj:8000},
+{category:t.ct6,a1:2000,a2:2500,d3:2000,pj:3000},
+{category:t.ct7,a1:1200,a2:2200,d3:4500,pj:7000},
+{category:t.ct8,a1:800,a2:1200,d3:2400,pj:4000}];
+return<div style={{width:"100%",height:420}}><ResponsiveContainer><BarChart data={bd} layout="vertical" margin={{top:10,right:30,left:90,bottom:5}}>
+<CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)"/>
+<XAxis type="number" tick={{fill:"#9CA3AF",fontSize:11}} tickFormatter={v=>cur==="usd"?"$"+((v*1e7/FX)/1e6).toFixed(0)+"M":"₹"+(v/1e3).toFixed(0)+"K Cr"}/>
+<YAxis type="category" dataKey="category" tick={{fill:"#D1D5DB",fontSize:10}} width={85}/>
+<Tooltip content={({active,payload,label})=>{if(!active||!payload?.length)return null;
+return<div style={TTS}><div style={{fontWeight:700,marginBottom:6}}>{label}</div>
+{payload.map((p,i)=><div key={i}><span style={{color:p.color}}>{p.name}</span>: {fmtCr(p.value,cur)}</div>)}</div>}}/>
+<Legend wrapperStyle={{fontSize:11,color:"#9CA3AF"}}/>
+<Bar dataKey="a1" name={t.lA1} fill="#1E40AF" radius={[0,3,3,0]} barSize={10}/>
+<Bar dataKey="a2" name={t.lA2} fill="#3B82F6" radius={[0,3,3,0]} barSize={10}/>
+<Bar dataKey="d3" name={t.lD3} fill="#DC2626" radius={[0,3,3,0]} barSize={10}/>
+<Bar dataKey="pj" name={t.lPj} fill="#F59E0B" radius={[0,3,3,0]} barSize={10}/>
+</BarChart></ResponsiveContainer></div>}
 
-  return (
-    <div style={{ width:"100%", height: 380 }}>
-      <ResponsiveContainer>
-        <ComposedChart data={combined} margin={{ top:20, right:30, left:10, bottom:5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-          <XAxis dataKey="yr" tick={{ fill:"#9CA3AF", fontSize:11 }} />
-          <YAxis yAxisId="left" tick={{ fill:"#9CA3AF", fontSize:11 }} tickFormatter={v => `${v.toFixed(1)}%`} domain={[0, 6]} label={{ value:"% of GSDP", angle:-90, position:"insideLeft", fill:"#9CA3AF", fontSize:11 }} />
-          <YAxis yAxisId="right" orientation="right" tick={{ fill:"#9CA3AF", fontSize:11 }} tickFormatter={v => `${(v/1000).toFixed(0)}K`} label={{ value:"₹ Crore", angle:90, position:"insideRight", fill:"#9CA3AF", fontSize:11 }} />
-          <Tooltip content={({ active, payload }) => {
-            if (!active || !payload?.length) return null;
-            const d = payload[0]?.payload;
-            const isProj = d.era?.startsWith("proj");
-            return (
-              <div style={CustomTooltipStyle}>
-                <div style={{ fontWeight:700, marginBottom:4 }}>{d.yr} {isProj ? "⟨projected⟩" : ""}</div>
-                <div>Fiscal Deficit: <span style={{ color:"#EF4444", fontWeight:600 }}>{formatCr(d.fdCr)}</span></div>
-                <div>As % of GSDP: <span style={{ color:"#F59E0B", fontWeight:600 }}>{d.fdPct.toFixed(2)}%</span></div>
-              </div>
-            );
-          }} />
-          <ReferenceLine yAxisId="left" y={3} stroke="#EF4444" strokeDasharray="6 4" opacity={0.6} label={{ value:"3% FRBM Limit", fill:"#EF4444", fontSize:10, position:"top" }} />
-          <Bar yAxisId="right" dataKey="fdCr" name="Fiscal Deficit (₹Cr)" radius={[3,3,0,0]} opacity={0.65}>
-            {combined.map((d, i) => (
-              <Cell key={i} fill={d.era?.startsWith("proj") ? (scenario==="dmk"?"#DC2626":"#2563EB") : (eraColors[d.era] || "#6B7280")} />
-            ))}
-          </Bar>
-          <Line yAxisId="left" type="monotone" dataKey="fdPct" stroke="#F59E0B" strokeWidth={3} dot={{ r:3, fill:"#F59E0B" }} strokeDasharray={combined.map((d,i) => i >= hist.length ? "6 4" : "0").includes("6 4") ? undefined : undefined} />
-        </ComposedChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
+function SC({label,value,sub,color="#F59E0B"}){return<div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,padding:"16px 20px",flex:"1 1 0",minWidth:160}}>
+<div style={{fontSize:11,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>{label}</div>
+<div style={{fontSize:26,fontWeight:800,color,lineHeight:1.1}}>{value}</div>
+{sub&&<div style={{fontSize:11,color:"#6B7280",marginTop:4}}>{sub}</div>}</div>}
 
-function Chart3_PerCapita({ data, projD, projA, scenario }) {
-  const proj = scenario === "dmk" ? projD : projA;
-  const all = [...data, ...proj].map(d => {
-    const fdPerCap = Math.round(d.fiscalDeficit / d.pop);
-    const freePerCap = Math.round(d.freebieSpend / d.pop);
-    const debtPerCap = Math.round(d.debt / d.pop);
-    const isProj = !d.era;
-    return { yr: d.yr, fdPerCap, freePerCap, debtPerCap, isProj };
-  });
+export default function Dashboard(){
+const[sc,setSc]=useState("dmk");
+const[tab,setTab]=useState(0);
+const[cur,setCur]=useState("inr");
+const[lang,setLang]=useState("en");
+const t=T[lang];const L=FD[FD.length-1];
+const tF=FD.slice(1).reduce((s,d)=>s+d.fS,0);
+const P=sc==="dmk"?pD[4]:pA[4];
+const c=v=>fmtCr(v,cur);const lc=v=>fmtLCr(v,cur);const pc=v=>fmtPC(v,cur);
+const sDesc=cur==="usd"?(sc==="dmk"?t.dmDu:t.aiDu):(sc==="dmk"?t.dmD:t.aiD);
+const c4s=cur==="usd"?(t.c4Su||t.c4S):t.c4S;
 
-  return (
-    <div style={{ width:"100%", height: 380 }}>
-      <ResponsiveContainer>
-        <ComposedChart data={all} margin={{ top:20, right:30, left:10, bottom:5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-          <XAxis dataKey="yr" tick={{ fill:"#9CA3AF", fontSize:11 }} />
-          <YAxis tick={{ fill:"#9CA3AF", fontSize:11 }} tickFormatter={v => `₹${(v/1000).toFixed(0)}K`} label={{ value:"₹ per person", angle:-90, position:"insideLeft", fill:"#9CA3AF", fontSize:11 }} />
-          <Tooltip content={({ active, payload }) => {
-            if (!active || !payload?.length) return null;
-            const d = payload[0]?.payload;
-            return (
-              <div style={CustomTooltipStyle}>
-                <div style={{ fontWeight:700, marginBottom:4 }}>{d.yr} {d.isProj ? "⟨projected⟩" : ""}</div>
-                <div>Freebie per capita: <span style={{ color:"#F59E0B", fontWeight:600 }}>{formatINR(d.freePerCap)}</span></div>
-                <div>Fiscal deficit per capita: <span style={{ color:"#EF4444", fontWeight:600 }}>{formatINR(d.fdPerCap)}</span></div>
-                <div>Debt per capita: <span style={{ color:"#8B5CF6", fontWeight:600 }}>{formatINR(d.debtPerCap)}</span></div>
-              </div>
-            );
-          }} />
-          <Area type="monotone" dataKey="debtPerCap" fill="#8B5CF6" fillOpacity={0.15} stroke="#8B5CF6" strokeWidth={2} name="Debt/Capita" />
-          <Line type="monotone" dataKey="fdPerCap" stroke="#EF4444" strokeWidth={2.5} dot={{ r:3 }} name="Deficit/Capita" />
-          <Line type="monotone" dataKey="freePerCap" stroke="#F59E0B" strokeWidth={2.5} dot={{ r:3 }} name="Freebie/Capita" />
-        </ComposedChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
+return(<div style={{fontFamily:"'DM Sans','Segoe UI',system-ui,sans-serif",background:"#0A0A0F",color:"#E5E7EB",minHeight:"100vh",padding:"32px 24px",maxWidth:960,margin:"0 auto"}}>
 
-function Chart4_DebtTrajectory({ data, projD, projA, scenario }) {
-  const proj = scenario === "dmk" ? projD : projA;
-  const all = [...data, ...proj].map(d => ({
-    yr: d.yr,
-    debtGsdp: (d.debt / d.gsdp * 100),
-    debtLCr: d.debt,
-    isProj: !d.era,
-  }));
+<div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:16,marginBottom:8}}>
+<div style={{display:"flex",alignItems:"center",gap:10,flex:1}}>
+<div style={{width:4,height:40,background:"linear-gradient(180deg,#EF4444,#F59E0B)",borderRadius:2}}/>
+<div><h1 style={{fontSize:28,fontWeight:900,margin:0,letterSpacing:"-0.02em",color:"#F9FAFB",lineHeight:1.1}}>{t.title}</h1>
+<div style={{fontSize:13,color:"#6B7280",marginTop:4}}>{t.subtitle}</div></div></div>
+<div style={{display:"flex",gap:16,alignItems:"center",flexWrap:"wrap"}}>
+<Tog label={t.cur} optA="INR" optB="USD" value={cur==="usd"?"b":"a"} onChange={v=>setCur(v==="b"?"usd":"inr")}/>
+<Tog label={t.lng} optA="EN" optB="தமிழ்" value={lang==="ta"?"b":"a"} onChange={v=>setLang(v==="b"?"ta":"en")}/>
+</div></div>
 
-  return (
-    <div style={{ width:"100%", height: 380 }}>
-      <ResponsiveContainer>
-        <ComposedChart data={all} margin={{ top:20, right:30, left:10, bottom:5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-          <XAxis dataKey="yr" tick={{ fill:"#9CA3AF", fontSize:11 }} />
-          <YAxis yAxisId="left" tick={{ fill:"#9CA3AF", fontSize:11 }} tickFormatter={v => `${v.toFixed(0)}%`} domain={[10, 35]} label={{ value:"Debt/GSDP %", angle:-90, position:"insideLeft", fill:"#9CA3AF", fontSize:11 }} />
-          <YAxis yAxisId="right" orientation="right" tick={{ fill:"#9CA3AF", fontSize:11 }} tickFormatter={v => `${(v/100000).toFixed(1)}L`} label={{ value:"₹ Lakh Cr", angle:90, position:"insideRight", fill:"#9CA3AF", fontSize:11 }} />
-          <Tooltip content={({ active, payload }) => {
-            if (!active || !payload?.length) return null;
-            const d = payload[0]?.payload;
-            return (
-              <div style={CustomTooltipStyle}>
-                <div style={{ fontWeight:700, marginBottom:4 }}>{d.yr} {d.isProj ? "⟨projected⟩" : ""}</div>
-                <div>Outstanding Debt: <span style={{ color:"#8B5CF6", fontWeight:600 }}>{formatLCr(d.debtLCr)}</span></div>
-                <div>Debt/GSDP: <span style={{ color:"#EF4444", fontWeight:600 }}>{d.debtGsdp.toFixed(1)}%</span></div>
-              </div>
-            );
-          }} />
-          <ReferenceLine yAxisId="left" y={30} stroke="#EF4444" strokeDasharray="6 4" opacity={0.5} label={{ value:"30% danger zone", fill:"#EF4444", fontSize:10, position:"top" }} />
-          <Area yAxisId="right" type="monotone" dataKey="debtLCr" fill="#8B5CF6" fillOpacity={0.2} stroke="#8B5CF6" strokeWidth={2} name="Debt (₹L Cr)" />
-          <Line yAxisId="left" type="monotone" dataKey="debtGsdp" stroke="#EF4444" strokeWidth={3} dot={{ r:3, fill:"#EF4444" }} name="Debt/GSDP %" />
-        </ComposedChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
+<p style={{fontSize:13,color:"#9CA3AF",lineHeight:1.7,margin:"12px 0 24px 0",maxWidth:820}}>
+{t.intro}<span style={{color:"#3B82F6",fontWeight:600}}>{t.a1L}</span>, <span style={{color:"#60A5FA",fontWeight:600}}>{t.a2L}</span>, <span style={{color:"#EF4444",fontWeight:600}}>{t.d3L}</span>{t.introTail}</p>
 
-function Chart5_FreebieBreakdown() {
-  const breakdown = [
-    { category:"PDS / Food\nSubsidy", aiadmk1:8000, aiadmk2:9000, dmk3:11000, proj:13000 },
-    { category:"Women Cash\nTransfers", aiadmk1:0, aiadmk2:0, dmk3:15000, proj:24000 },
-    { category:"Free Bus\nTravel", aiadmk1:1800, aiadmk2:2500, dmk3:3600, proj:7200 },
-    { category:"Laptops\n& Education", aiadmk1:3500, aiadmk2:2800, dmk3:3500, proj:5000 },
-    { category:"Appliances\n(Mixie etc)", aiadmk1:4500, aiadmk2:2000, dmk3:1500, proj:8000 },
-    { category:"Gold / Marriage\nAssistance", aiadmk1:2000, aiadmk2:2500, dmk3:2000, proj:3000 },
-    { category:"Pensions &\nBreakfast", aiadmk1:1200, aiadmk2:2200, dmk3:4500, proj:7000 },
-    { category:"Pongal &\nOther Gifts", aiadmk1:800, aiadmk2:1200, dmk3:2400, proj:4000 },
-  ];
+<div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:28}}>
+<SC label={t.sfL} value={c(L.fS)} sub={`${(L.fS/L.rR*100).toFixed(1)}% ${t.sfR}`} color="#F59E0B"/>
+<SC label={t.stL} value={lc(tF)} sub={t.stS} color="#10B981"/>
+<SC label={t.sdL} value={c(L.fD)} sub={`${(L.fD/L.g*100).toFixed(1)}% ${t.sdG}`} color="#EF4444"/>
+<SC label={t.sdbL} value={lc(L.d)} sub={`${(L.d/L.g*100).toFixed(0)}% ${t.sdbS}`} color="#8B5CF6"/>
+</div>
 
-  return (
-    <div style={{ width:"100%", height: 420 }}>
-      <ResponsiveContainer>
-        <BarChart data={breakdown} layout="vertical" margin={{ top:10, right:30, left:80, bottom:5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-          <XAxis type="number" tick={{ fill:"#9CA3AF", fontSize:11 }} tickFormatter={v => `₹${(v/1000).toFixed(0)}K Cr`} />
-          <YAxis type="category" dataKey="category" tick={{ fill:"#D1D5DB", fontSize:10, width:80 }} width={85} />
-          <Tooltip content={({ active, payload, label }) => {
-            if (!active || !payload?.length) return null;
-            return (
-              <div style={CustomTooltipStyle}>
-                <div style={{ fontWeight:700, marginBottom:6 }}>{label}</div>
-                {payload.map((p, i) => (
-                  <div key={i}><span style={{ color:p.color }}>{p.name}</span>: {formatCr(p.value)}</div>
-                ))}
-              </div>
-            );
-          }} />
-          <Legend wrapperStyle={{ fontSize:11, color:"#9CA3AF" }} />
-          <Bar dataKey="aiadmk1" name="AIADMK-I (FY12–16)" fill="#1E40AF" radius={[0,3,3,0]} barSize={10} />
-          <Bar dataKey="aiadmk2" name="AIADMK-II (FY17–21)" fill="#3B82F6" radius={[0,3,3,0]} barSize={10} />
-          <Bar dataKey="dmk3" name="DMK (FY22–26)" fill="#DC2626" radius={[0,3,3,0]} barSize={10} />
-          <Bar dataKey="proj" name="2026 Manifesto Avg" fill="#F59E0B" radius={[0,3,3,0]} barSize={10} />
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
+<div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20,padding:"12px 16px",background:"rgba(255,255,255,0.03)",borderRadius:10,border:"1px solid rgba(255,255,255,0.06)",flexWrap:"wrap"}}>
+<span style={{fontSize:12,color:"#9CA3AF",fontWeight:600}}>{t.pL}</span>
+<button onClick={()=>setSc("dmk")} style={{padding:"6px 16px",borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:700,background:sc==="dmk"?"#DC2626":"transparent",color:sc==="dmk"?"#fff":"#9CA3AF",border:sc==="dmk"?"none":"1px solid rgba(255,255,255,0.15)"}}>{t.dmM}</button>
+<button onClick={()=>setSc("aiadmk")} style={{padding:"6px 16px",borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:700,background:sc==="aiadmk"?"#1E40AF":"transparent",color:sc==="aiadmk"?"#fff":"#9CA3AF",border:sc==="aiadmk"?"none":"1px solid rgba(255,255,255,0.15)"}}>{t.aiM}</button>
+<span style={{fontSize:11,color:"#6B7280"}}>{sDesc}</span></div>
 
-// ─── STAT CARDS ──────────────────────────────────────────────────────────
+<div style={{display:"flex",gap:4,marginBottom:4,overflowX:"auto",paddingBottom:4}}>
+{t.tabs.map((tb,i)=><button key={i} onClick={()=>setTab(i)} style={{padding:"10px 18px",borderRadius:8,cursor:"pointer",fontSize:12,fontWeight:600,whiteSpace:"nowrap",background:tab===i?"rgba(245,158,11,0.15)":"transparent",color:tab===i?"#F59E0B":"#6B7280",border:tab===i?"1px solid rgba(245,158,11,0.3)":"1px solid transparent"}}>{tb}</button>)}</div>
 
-function StatCard({ label, value, sub, color="#F59E0B" }) {
-  return (
-    <div style={{
-      background:"rgba(255,255,255,0.03)",
-      border:"1px solid rgba(255,255,255,0.08)",
-      borderRadius:12,
-      padding:"16px 20px",
-      flex:"1 1 0",
-      minWidth:160,
-    }}>
-      <div style={{ fontSize:11, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>{label}</div>
-      <div style={{ fontSize:26, fontWeight:800, color, lineHeight:1.1 }}>{value}</div>
-      {sub && <div style={{ fontSize:11, color:"#6B7280", marginTop:4 }}>{sub}</div>}
-    </div>
-  );
-}
+<div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:14,padding:"24px 16px 16px",marginBottom:24}}>
+{tab===0&&<><h3 style={{fontSize:16,fontWeight:700,margin:"0 0 4px 8px",color:"#F9FAFB"}}>{t.c1T}</h3><p style={{fontSize:12,color:"#6B7280",margin:"0 0 12px 8px"}}>{t.c1S}</p><C1 data={FD} t={t} cur={cur}/></>}
+{tab===1&&<><h3 style={{fontSize:16,fontWeight:700,margin:"0 0 4px 8px",color:"#F9FAFB"}}>{t.c2T(sc)}</h3><p style={{fontSize:12,color:"#6B7280",margin:"0 0 12px 8px"}}>{t.c2S}</p><C2 data={FD} prD={pD} prA={pA} sc={sc} t={t} cur={cur}/></>}
+{tab===2&&<><h3 style={{fontSize:16,fontWeight:700,margin:"0 0 4px 8px",color:"#F9FAFB"}}>{t.c3T}</h3><p style={{fontSize:12,color:"#6B7280",margin:"0 0 12px 8px"}}>{t.c3S(sc)}</p><C3 data={FD} prD={pD} prA={pA} sc={sc} t={t} cur={cur}/></>}
+{tab===3&&<><h3 style={{fontSize:16,fontWeight:700,margin:"0 0 4px 8px",color:"#F9FAFB"}}>{t.c4T}</h3><p style={{fontSize:12,color:"#6B7280",margin:"0 0 12px 8px"}}>{c4s}</p><C4 data={FD} prD={pD} prA={pA} sc={sc} t={t} cur={cur}/></>}
+{tab===4&&<><h3 style={{fontSize:16,fontWeight:700,margin:"0 0 4px 8px",color:"#F9FAFB"}}>{t.c5T}</h3><p style={{fontSize:12,color:"#6B7280",margin:"0 0 12px 8px"}}>{t.c5S}</p><C5 t={t} cur={cur}/></>}
+</div>
 
-// ─── MAIN DASHBOARD ──────────────────────────────────────────────────────
+<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:28}}>
+{[["dmk",pD[4],"#EF4444","rgba(220,38,38,0.06)","1px solid rgba(220,38,38,0.2)"],["aiadmk",pA[4],"#3B82F6","rgba(30,64,175,0.08)","1px solid rgba(59,130,246,0.25)"]].map(([k,p,col,bg,bd])=>
+<div key={k} style={{background:bg,border:bd,borderRadius:12,padding:20}}>
+<h4 style={{fontSize:13,fontWeight:800,color:col,margin:"0 0 10px 0",textTransform:"uppercase",letterSpacing:0.5}}>{k==="dmk"?t.iD:t.iA}</h4>
+<div style={{fontSize:12,color:"#D1D5DB",lineHeight:1.8}}>
+<div>{t.pF}: <strong style={{color:"#F59E0B"}}>{lc(p.fS)}</strong> ({(p.fS/p.rR*100).toFixed(0)}% {t.oR})</div>
+<div>{t.pDf}: <strong style={{color:"#EF4444"}}>{lc(p.fD)}</strong> ({(p.fD/p.g*100).toFixed(1)}% GSDP)</div>
+<div>{t.pDb}: <strong style={{color:"#8B5CF6"}}>{lc(p.d)}</strong> ({(p.d/p.g*100).toFixed(1)}% GSDP)</div>
+<div>{t.pDPC}: <strong style={{color:"#8B5CF6"}}>{pc(Math.round(p.d/p.p))}</strong></div></div></div>)}</div>
 
-export default function Dashboard() {
-  const [scenario, setScenario] = useState("dmk");
-  const [activeTab, setActiveTab] = useState(0);
+<div style={{background:"rgba(245,158,11,0.05)",border:"1px solid rgba(245,158,11,0.15)",borderRadius:12,padding:20,marginBottom:24}}>
+<h4 style={{fontSize:14,fontWeight:800,color:"#F59E0B",margin:"0 0 12px 0"}}>{t.kT}</h4>
+<div style={{fontSize:12.5,color:"#D1D5DB",lineHeight:1.9}}>
+<div><strong>1.</strong> {t.k1(c)}</div>
+<div><strong>2.</strong> {t.k2}</div>
+<div><strong>3.</strong> {t.k3(cur)}</div>
+<div><strong style={{color:"#EF4444"}}>4.</strong> {t.k4}</div>
+<div><strong style={{color:"#8B5CF6"}}>5.</strong> {t.k5(cur)}</div></div></div>
 
-  const latestHist = fiscalData[fiscalData.length - 1];
-  const latestProj = scenario === "dmk" ? projDMK[projDMK.length - 1] : projAIADMK[projAIADMK.length - 1];
-  
-  const freePctNow = (latestHist.freebieSpend / latestHist.revReceipts * 100);
-  const freePctProj = (latestProj.freebieSpend / latestProj.revReceipts * 100);
-  const fdPctProj = (latestProj.fiscalDeficit / latestProj.gsdp * 100);
-  const debtPctProj = (latestProj.debt / latestProj.gsdp * 100);
+<div style={{background:"rgba(255,255,255,0.02)",borderRadius:12,padding:20,border:"1px solid rgba(255,255,255,0.05)",marginBottom:16}}>
+<h4 style={{fontSize:13,fontWeight:700,color:"#9CA3AF",margin:"0 0 10px 0"}}>{t.mT}</h4>
+<div style={{fontSize:11.5,color:"#6B7280",lineHeight:1.8}}>
+<div><strong>{t.mSL}</strong> {t.mS}</div>
+<div><strong>{t.mDL}</strong> {t.mD}</div>
+<div><strong>{t.mPL}</strong> {t.mP}</div>
+{cur==="usd"&&<div><strong>{t.mFL}</strong> {t.mF}</div>}</div></div>
 
-  const totalFreebies11to26 = fiscalData.slice(1).reduce((s,d) => s + d.freebieSpend, 0);
-
-  const tabs = [
-    { label:"Freebies vs Revenue", id:0 },
-    { label:"Fiscal Deficit", id:1 },
-    { label:"Per Capita Impact", id:2 },
-    { label:"Debt Trajectory", id:3 },
-    { label:"Freebie Breakdown", id:4 },
-  ];
-
-  return (
-    <div style={{
-      fontFamily:"'DM Sans', 'Segoe UI', system-ui, sans-serif",
-      background:"#0A0A0F",
-      color:"#E5E7EB",
-      minHeight:"100vh",
-      padding:"32px 24px",
-      maxWidth:960,
-      margin:"0 auto",
-    }}>
-      {/* Header */}
-      <div style={{ marginBottom:32 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8 }}>
-          <div style={{ width:4, height:40, background:"linear-gradient(180deg, #EF4444, #F59E0B)", borderRadius:2 }} />
-          <div>
-            <h1 style={{ fontSize:28, fontWeight:900, margin:0, letterSpacing:"-0.02em", color:"#F9FAFB", lineHeight:1.1 }}>
-              Tamil Nadu: The Fiscal Cost of Election Freebies
-            </h1>
-            <div style={{ fontSize:13, color:"#6B7280", marginTop:4 }}>FY 2010–11 → FY 2030–31 | AIADMK & DMK Manifesto Analysis</div>
-          </div>
-        </div>
-        <p style={{ fontSize:13, color:"#9CA3AF", lineHeight:1.7, margin:"16px 0 0 0", maxWidth:820 }}>
-          Estimated annual cost of election-linked welfare schemes ("freebies") across three successive elected governments — 
-          <span style={{ color:"#3B82F6", fontWeight:600 }}> AIADMK-I (2011–16)</span>, 
-          <span style={{ color:"#60A5FA", fontWeight:600 }}> AIADMK-II (2016–21)</span>, and 
-          <span style={{ color:"#EF4444", fontWeight:600 }}> DMK (2021–26)</span> — 
-          with 5-year projections based on 2026 manifesto promises. Data sourced from CAG audit reports, PRS India budget analyses, TN Finance Dept, and NITI Aayog.
-        </p>
-      </div>
-
-      {/* Key Stats */}
-      <div style={{ display:"flex", gap:12, flexWrap:"wrap", marginBottom:28 }}>
-        <StatCard label="Freebies (FY26)" value={formatCr(latestHist.freebieSpend)} sub={`${freePctNow.toFixed(1)}% of revenue receipts`} color="#F59E0B" />
-        <StatCard label="Total Freebies FY12–26" value={formatLCr(totalFreebies11to26)} sub="15 years, 3 govts" color="#10B981" />
-        <StatCard label="Fiscal Deficit FY26" value={formatCr(latestHist.fiscalDeficit)} sub={`${(latestHist.fiscalDeficit / latestHist.gsdp * 100).toFixed(1)}% of GSDP`} color="#EF4444" />
-        <StatCard label="Outstanding Debt" value={formatLCr(latestHist.debt)} sub={`${(latestHist.debt / latestHist.gsdp * 100).toFixed(0)}% of GSDP (FY26)`} color="#8B5CF6" />
-      </div>
-
-      {/* Scenario Toggle */}
-      <div style={{
-        display:"flex", alignItems:"center", gap:12, marginBottom:20,
-        padding:"12px 16px", background:"rgba(255,255,255,0.03)", borderRadius:10,
-        border:"1px solid rgba(255,255,255,0.06)",
-      }}>
-        <span style={{ fontSize:12, color:"#9CA3AF", fontWeight:600 }}>PROJECTION SCENARIO (FY27–31):</span>
-        <button
-          onClick={() => setScenario("dmk")}
-          style={{
-            padding:"6px 16px", borderRadius:6, cursor:"pointer", fontSize:12, fontWeight:700,
-            background: scenario==="dmk" ? "#DC2626" : "transparent",
-            color: scenario==="dmk" ? "#fff" : "#9CA3AF",
-            border: scenario==="dmk" ? "none" : "1px solid rgba(255,255,255,0.15)",
-          }}
-        >DMK 2026 Manifesto</button>
-        <button
-          onClick={() => setScenario("aiadmk")}
-          style={{
-            padding:"6px 16px", borderRadius:6, cursor:"pointer", fontSize:12, fontWeight:700,
-            background: scenario==="aiadmk" ? "#1E40AF" : "transparent",
-            color: scenario==="aiadmk" ? "#fff" : "#9CA3AF",
-            border: scenario==="aiadmk" ? "none" : "1px solid rgba(255,255,255,0.15)",
-          }}
-        >AIADMK 2026 Manifesto</button>
-        <span style={{ fontSize:11, color:"#6B7280", marginLeft:8 }}>
-          {scenario === "dmk" 
-            ? "₹2K/mo KMUT + ₹8K coupons + laptops + expanded breakfast" 
-            : "₹2K/mo Kula Vilakku + free fridges + free bus (men) + 3 LPG cylinders"}
-        </span>
-      </div>
-
-      {/* Tab Navigation */}
-      <div style={{ display:"flex", gap:4, marginBottom:4, overflowX:"auto", paddingBottom:4 }}>
-        {tabs.map(t => (
-          <button key={t.id}
-            onClick={() => setActiveTab(t.id)}
-            style={{
-              padding:"10px 18px", borderRadius:8, cursor:"pointer", fontSize:12, fontWeight:600,
-              whiteSpace:"nowrap",
-              background: activeTab===t.id ? "rgba(245,158,11,0.15)" : "transparent",
-              color: activeTab===t.id ? "#F59E0B" : "#6B7280",
-              border: activeTab===t.id ? "1px solid rgba(245,158,11,0.3)" : "1px solid transparent",
-            }}
-          >{t.label}</button>
-        ))}
-      </div>
-
-      {/* Chart Panels */}
-      <div style={{
-        background:"rgba(255,255,255,0.02)",
-        border:"1px solid rgba(255,255,255,0.06)",
-        borderRadius:14,
-        padding:"24px 16px 16px",
-        marginBottom:24,
-      }}>
-        {activeTab === 0 && (
-          <>
-            <h3 style={{ fontSize:16, fontWeight:700, margin:"0 0 4px 8px", color:"#F9FAFB" }}>
-              Election Freebies as % of State Revenue Receipts
-            </h3>
-            <p style={{ fontSize:12, color:"#6B7280", margin:"0 0 12px 8px" }}>
-              Bars = absolute freebie spend (₹ Cr) · Line = freebies as % of total revenue receipts · Color-coded by ruling government
-            </p>
-            <Chart1_FreebieVsRevenue data={fiscalData} />
-          </>
-        )}
-        {activeTab === 1 && (
-          <>
-            <h3 style={{ fontSize:16, fontWeight:700, margin:"0 0 4px 8px", color:"#F9FAFB" }}>
-              Fiscal Deficit: Actual + Projected ({scenario === "dmk" ? "DMK" : "AIADMK"} Manifesto Scenario)
-            </h3>
-            <p style={{ fontSize:12, color:"#6B7280", margin:"0 0 12px 8px" }}>
-              Red dashed = 3% FRBM limit · Bars = deficit in ₹ Cr · Line = deficit as % of GSDP · Projected years use manifesto cost assumptions + 10% revenue CAGR
-            </p>
-            <Chart2_FiscalDeficitBalloon data={fiscalData} projD={projDMK} projA={projAIADMK} scenario={scenario} />
-          </>
-        )}
-        {activeTab === 2 && (
-          <>
-            <h3 style={{ fontSize:16, fontWeight:700, margin:"0 0 4px 8px", color:"#F9FAFB" }}>
-              Per Capita Burden: Freebie Spend, Fiscal Deficit & Debt
-            </h3>
-            <p style={{ fontSize:12, color:"#6B7280", margin:"0 0 12px 8px" }}>
-              Population: 7.1 Cr (2011 Census) → est. 7.96 Cr (2031) · Per capita = scheme/deficit/debt ÷ population · {scenario === "dmk" ? "DMK" : "AIADMK"} manifesto projections after FY26
-            </p>
-            <Chart3_PerCapita data={fiscalData} projD={projDMK} projA={projAIADMK} scenario={scenario} />
-          </>
-        )}
-        {activeTab === 3 && (
-          <>
-            <h3 style={{ fontSize:16, fontWeight:700, margin:"0 0 4px 8px", color:"#F9FAFB" }}>
-              Outstanding Debt Trajectory & Debt-to-GSDP Ratio
-            </h3>
-            <p style={{ fontSize:12, color:"#6B7280", margin:"0 0 12px 8px" }}>
-              30% debt/GSDP widely considered the "danger zone" for state fiscal health · Debt crossed ₹8L Cr in FY25 · {scenario === "dmk" ? "DMK" : "AIADMK"} projections
-            </p>
-            <Chart4_DebtTrajectory data={fiscalData} projD={projDMK} projA={projAIADMK} scenario={scenario} />
-          </>
-        )}
-        {activeTab === 4 && (
-          <>
-            <h3 style={{ fontSize:16, fontWeight:700, margin:"0 0 4px 8px", color:"#F9FAFB" }}>
-              Freebie Breakdown by Category: Average Annual Spend per Govt
-            </h3>
-            <p style={{ fontSize:12, color:"#6B7280", margin:"0 0 12px 8px" }}>
-              Estimated avg annual spend per category across each government tenure · "2026 Manifesto Avg" = projected first full year of new promises
-            </p>
-            <Chart5_FreebieBreakdown />
-          </>
-        )}
-      </div>
-
-      {/* Projection Summary Box */}
-      <div style={{
-        display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:28,
-      }}>
-        <div style={{
-          background:"rgba(220,38,38,0.06)", border:"1px solid rgba(220,38,38,0.2)", borderRadius:12, padding:20,
-        }}>
-          <h4 style={{ fontSize:13, fontWeight:800, color:"#EF4444", margin:"0 0 10px 0", textTransform:"uppercase", letterSpacing:0.5 }}>
-            If DMK Manifesto Implemented (FY31)
-          </h4>
-          <div style={{ fontSize:12, color:"#D1D5DB", lineHeight:1.8 }}>
-            <div>Projected freebie spend: <strong style={{ color:"#F59E0B" }}>{formatLCr(projDMK[4].freebieSpend)}</strong> ({(projDMK[4].freebieSpend/projDMK[4].revReceipts*100).toFixed(0)}% of revenue)</div>
-            <div>Fiscal deficit: <strong style={{ color:"#EF4444" }}>{formatLCr(projDMK[4].fiscalDeficit)}</strong> ({(projDMK[4].fiscalDeficit/projDMK[4].gsdp*100).toFixed(1)}% of GSDP)</div>
-            <div>Outstanding debt: <strong style={{ color:"#8B5CF6" }}>{formatLCr(projDMK[4].debt)}</strong> ({(projDMK[4].debt/projDMK[4].gsdp*100).toFixed(1)}% of GSDP)</div>
-            <div>Debt per capita: <strong style={{ color:"#8B5CF6" }}>{formatINR(Math.round(projDMK[4].debt / projDMK[4].pop))}</strong></div>
-          </div>
-        </div>
-        <div style={{
-          background:"rgba(30,64,175,0.08)", border:"1px solid rgba(59,130,246,0.25)", borderRadius:12, padding:20,
-        }}>
-          <h4 style={{ fontSize:13, fontWeight:800, color:"#3B82F6", margin:"0 0 10px 0", textTransform:"uppercase", letterSpacing:0.5 }}>
-            If AIADMK Manifesto Implemented (FY31)
-          </h4>
-          <div style={{ fontSize:12, color:"#D1D5DB", lineHeight:1.8 }}>
-            <div>Projected freebie spend: <strong style={{ color:"#F59E0B" }}>{formatLCr(projAIADMK[4].freebieSpend)}</strong> ({(projAIADMK[4].freebieSpend/projAIADMK[4].revReceipts*100).toFixed(0)}% of revenue)</div>
-            <div>Fiscal deficit: <strong style={{ color:"#EF4444" }}>{formatLCr(projAIADMK[4].fiscalDeficit)}</strong> ({(projAIADMK[4].fiscalDeficit/projAIADMK[4].gsdp*100).toFixed(1)}% of GSDP)</div>
-            <div>Outstanding debt: <strong style={{ color:"#8B5CF6" }}>{formatLCr(projAIADMK[4].debt)}</strong> ({(projAIADMK[4].debt/projAIADMK[4].gsdp*100).toFixed(1)}% of GSDP)</div>
-            <div>Debt per capita: <strong style={{ color:"#8B5CF6" }}>{formatINR(Math.round(projAIADMK[4].debt / projAIADMK[4].pop))}</strong></div>
-          </div>
-        </div>
-      </div>
-
-      {/* Key Findings */}
-      <div style={{
-        background:"rgba(245,158,11,0.05)", border:"1px solid rgba(245,158,11,0.15)", borderRadius:12, padding:20, marginBottom:24,
-      }}>
-        <h4 style={{ fontSize:14, fontWeight:800, color:"#F59E0B", margin:"0 0 12px 0" }}>KEY FINDINGS</h4>
-        <div style={{ fontSize:12.5, color:"#D1D5DB", lineHeight:1.9 }}>
-          <div><strong>1.</strong> Freebie spend has grown <strong style={{ color:"#F59E0B" }}>~4.7×</strong> in 15 years — from ₹12,000 Cr (FY11) to ₹56,000 Cr (FY26) — outpacing revenue growth of ~4.7×.</div>
-          <div><strong>2.</strong> Freebies now consume <strong style={{ color:"#F59E0B" }}>~17%</strong> of total revenue receipts (FY26), up from ~17% in FY11 — the <em>composition</em> has shifted from one-time items (TVs, mixies) to recurring cash transfers (KMUT, bus subsidies).</div>
-          <div><strong>3.</strong> The shift to <strong>recurring commitments</strong> is the critical change: the DMK's KMUT (₹12K–24K/yr per woman) and bus subsidy together add ₹18,000+ Cr of permanent annual obligations vs. AIADMK's one-off appliance schemes.</div>
-          <div><strong>4.</strong> Both 2026 manifestos would push fiscal deficit to <strong style={{ color:"#EF4444" }}>3.5–4.9% of GSDP</strong>, breaching the 3% FRBM ceiling. AIADMK's promises are costlier by ~₹10,000–13,000 Cr/year due to the universal ₹2K/month + free male bus travel.</div>
-          <div><strong>5.</strong> Per capita debt burden is projected to nearly <strong style={{ color:"#8B5CF6" }}>double</strong> from ₹1.1L (FY26) to ₹2.0–2.2L (FY31), crowding out capital expenditure on infrastructure and industry.</div>
-        </div>
-      </div>
-
-      {/* Methodology */}
-      <div style={{
-        background:"rgba(255,255,255,0.02)", borderRadius:12, padding:20,
-        border:"1px solid rgba(255,255,255,0.05)", marginBottom:16,
-      }}>
-        <h4 style={{ fontSize:13, fontWeight:700, color:"#9CA3AF", margin:"0 0 10px 0" }}>METHODOLOGY & ASSUMPTIONS</h4>
-        <div style={{ fontSize:11.5, color:"#6B7280", lineHeight:1.8 }}>
-          <div><strong>Sources:</strong> CAG State Finance Audit Reports (FY11–FY24), PRS India Budget Analyses (FY19–FY25), TN Finance Dept Budget documents (FY25–26), NITI Aayog Macro-Fiscal Landscape (Mar 2025), RBI State Finances reports, news analysis of DMK and AIADMK 2026 election manifestos.</div>
-          <div><strong>"Freebie" definition:</strong> Subsidies and welfare schemes directly linked to election manifesto promises — includes PDS food subsidy, free/subsidised transport, cash transfers to women, free appliances (TVs, mixies, grinders, fans, fridges), laptops, gold for brides (Thali scheme), Pongal gifts, breakfast scheme, enhanced pensions. Excludes developmental welfare (ICDS, MGNREGA, housing). Estimates are conservative.</div>
-          <div><strong>Revenue projections:</strong> 10% nominal CAGR (FY27–31), consistent with FY12–26 historical CAGR of ~11%. GSDP: 11% nominal CAGR. Population: 0.5% annual growth (TN's low fertility rate).</div>
-          <div><strong>Freebie projections:</strong> Based on estimated full-year cost of each manifesto promise at stated coverage levels (1.5–2.2 Cr ration cards, 7.75 Cr population). One-time costs (fridges, coupons) amortised over 2 years. Recurring costs (monthly transfers, bus subsidies) annualised at full run-rate from Year 2.</div>
-          <div><strong>Fiscal deficit projections:</strong> = Historical baseline deficit + incremental freebie cost – assumed 10% revenue growth. Does not assume spending cuts elsewhere.</div>
-        </div>
-      </div>
-
-      <div style={{ textAlign:"center", fontSize:10, color:"#4B5563", padding:"12px 0" }}>
-        Analysis compiled April 2026 · Not investment or policy advice · Data is estimated based on public sources and stated manifesto commitments
-      </div>
-    </div>
-  );
-}
+<div style={{textAlign:"center",fontSize:10,color:"#4B5563",padding:"12px 0"}}>{t.ft}</div>
+</div>)}
